@@ -1,23 +1,23 @@
 import datetime
 import random
-# import sys
+import sys
 import traceback
 
 import config
 
 from flask import current_app
 
+from riotwatcher import LoLException
+from riotwatcher import RiotWatcher
+
 from keys import API_KEY
 from tilt_exceptions import SummonerNotFound
 
-from riotapi import RiotAPI
 
-
-def get_champions_data(api):
-    # champions_list = watcher.static_get_champion_list()['data']
-    champions = api.get_champions()['data']
+def get_champions_data(watcher):
+    champions_list = watcher.static_get_champion_list()['data']
     champions_dict = {}
-    for data in champions.values():
+    for data in champions_list.values():
         champions_dict[data['id']] = {'name': data['name'], 'key': data['key']}
 
     return champions_dict
@@ -77,7 +77,6 @@ def get_stats(games, champions_dict):
 
 
 def get_wins_number(games):
-    print 'get_wins_number...'
     wins_number = 0
     for game in games:
         if game['stats']['win']:
@@ -110,7 +109,7 @@ def get_tilt_level(games):
         # When practising vs BOTS or custom games you never get tilted,
         # so they don't count. We even take 3 points off the tilt level,
         # since they are just for fun
-        if ('BOT' or 'NONE') in game['role']:
+        if ('BOT' or 'NONE') in game['subType']:
             tilt_points -= 3
             continue
 
@@ -192,44 +191,34 @@ def get_tilt_level(games):
 
 def get_tilt(area, summoner_name):
     try:
-        api = RiotAPI(API_KEY, area)
-        champions_dict = get_champions_data(api)
+        watcher = RiotWatcher(API_KEY, default_region=area)
+        champions_dict = get_champions_data(watcher)
+        # check if we have API calls remaining
+        if watcher.can_make_request():
+            current_app.logger.debug('Requests to API available')
+        else:
+            current_app.logger.error('Too many requests. '
+                                     'Please try again later.')
+            sys.exit(2)
         try:
-            player = api.get_summoner_by_name(summoner_name)
-        except:
+            player = watcher.get_summoner(name=summoner_name, region=area)
+        except LoLException:
             current_app.logger.debug('Summoner {0} not found.'.format(
                 summoner_name))
             raise SummonerNotFound(
                 'Summoner {0} not found in {1} server.'.format(
                     summoner_name, area.upper()))
-        # last 20 matches - overview, no specifics
-        recent_matches = api.get_recent_matches(player)['matches']
 
-        recent_games = []
-
-        max_matches = 10
-        aux = 0
-        for match in recent_matches:
-            if aux < max_matches:
-                recent_games.append(api.get_match_data(match['gameId']))
-                aux += 1
-            else:
-                break
-
-        print 'RECENT_GAMES: {}'.format(recent_games)
-        try:
-            response = {"status": 200,
-                        "wins": get_wins_number(recent_games),
-                        "metadata": {
-                            "background": get_random_background_url(
-                                champions_dict),
-                            "display": get_random_display()},
-                        "stats": get_stats(recent_games, champions_dict),
-                        "summoner_name": summoner_name,
-                        "tilt_level": get_tilt_level(recent_games)}
-        except:
-            traceback.format_exc()
-
+        recent_games = watcher.get_recent_games(player['id'])['games']
+        response = {"status": 200,
+                    "wins": get_wins_number(recent_games),
+                    "metadata": {
+                        "background": get_random_background_url(
+                            champions_dict),
+                        "display": get_random_display()},
+                    "stats": get_stats(recent_games, champions_dict),
+                    "summoner_name": summoner_name,
+                    "tilt_level": get_tilt_level(recent_games)}
         return response
     except:
         current_app.logger.error(traceback.format_exc())
