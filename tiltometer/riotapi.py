@@ -22,7 +22,6 @@ class RiotAPI(object):
             for k, v in params.iteritems():
                 if k not in args:
                     args[k] = v
-            print 'args: {}'.format(args)
             # 'https://{platform}.api.riotgames.com/{game}/{service}/{version}/{resource}'
             url = config.RIOT_URL['base'].format(
                 platform=self.region,
@@ -33,9 +32,9 @@ class RiotAPI(object):
             print 'url: {}'.format(url)
             response = requests.get(url, params=args)
             print 'Made request to: {}'.format(response.url)
-            print 'Response: {}'.format(response)
-            print 'Response Header: {}'.format(response.headers)
-            print 'Response JSON: {}'.format(response.json())
+            # print 'Response: {}'.format(response)
+            # print 'Response Header: {}'.format(response.headers)
+            # print 'Response JSON: {}'.format(response.json())
             print 'Response STATUS: {}'.format(response.status_code)
             if response.status_code == 429:
                 current_app.logger.error('{}'.format(

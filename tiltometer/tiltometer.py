@@ -76,13 +76,28 @@ def get_stats(games, champions_dict):
     return stats
 
 
-def get_wins_number(games):
+def get_wins_number(games, summoner_name):
     print 'get_wins_number...'
     wins_number = 0
-    for game in games:
-        if game['stats']['win']:
-            wins_number += 1
-    return wins_number
+    try:
+        for game in games:
+            for player in game['participantIdentities']:
+                if player['player']['summonerName'] == summoner_name:
+                    player_id = int(player['participantId'])
+                    print 'player_id = {}'.format(player_id)
+
+            if player_id < 6:
+                team = 0
+            else:
+                team = 1
+
+            if game['teams'][team]['win'] == "Win":
+                wins_number += 1
+        print 'wins = {}'.format(wins_number)
+        return wins_number
+    except:
+        current_app.logger.debug(traceback.format_exc())
+        print traceback.format_exc()
 
 
 def get_random_background_url(champions_dict):
@@ -207,7 +222,7 @@ def get_tilt(area, summoner_name):
 
         recent_games = []
 
-        max_matches = 10
+        max_matches = 2
         aux = 0
         for match in recent_matches:
             if aux < max_matches:
@@ -216,10 +231,14 @@ def get_tilt(area, summoner_name):
             else:
                 break
 
-        print 'RECENT_GAMES: {}'.format(recent_games)
+        # print 'RECENT_GAMES: {}'.format(recent_games)
+        for rg in recent_games:
+            print '#' * 60
+            print rg
+        print 'RECENT_GAMES: {}'.format(len(recent_games))
         try:
             response = {"status": 200,
-                        "wins": get_wins_number(recent_games),
+                        "wins": get_wins_number(recent_games, summoner_name),
                         "metadata": {
                             "background": get_random_background_url(
                                 champions_dict),
